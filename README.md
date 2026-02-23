@@ -44,15 +44,14 @@ docker build -t tun-safe .
 docker run -d \
   --name safe-server \
   --restart always \
-  --network host \
-  -v "$(pwd)":/apps \
+  --network host \ 
   -e MODE=server \
   -e TCP_BIND_HOST=0.0.0.0 \
   -e TCP_BIND_PORT=9090 \
   -e TARGET_UDP_HOST=10.3.4.2 \
   -e TARGET_UDP_PORT=3478 \
   -e DEBUG=true \
-  tun-safe
+  registry.cn-hangzhou.aliyuncs.com/junhub/tun-safe:1.0.1
 ```
 
 ##### 4.3 运行客户端
@@ -60,15 +59,14 @@ docker run -d \
 docker run -d \
   --name safe-client \
   --restart always \
-  --network host \
-  -v "$(pwd)":/apps \
+  --network host \ 
   -e MODE=client \
   -e UDP_BIND_HOST=0.0.0.0 \
   -e UDP_BIND_PORT=8080 \
   -e REMOTE_TCP_HOST=xx.xx.94.89 \
   -e REMOTE_TCP_PORT=9090 \
   -e DEBUG=true \
-  tun-safe
+  registry.cn-hangzhou.aliyuncs.com/junhub/tun-safe:1.0.1
 ```
 
 #### 5. **参数说明**
