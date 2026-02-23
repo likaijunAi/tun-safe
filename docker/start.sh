@@ -1,0 +1,14 @@
+java --add-opens java.base/java.lang=ALL-UNNAMED \
+--add-opens java.base/java.math=ALL-UNNAMED \
+--add-opens java.base/java.util=ALL-UNNAMED \
+--add-opens java.base/sun.net.util=ALL-UNNAMED \
+--add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+--add-opens java.base/sun.reflect.generics.repository=ALL-UNNAMED \
+--add-opens java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED \
+--add-opens java.base/sun.reflect.generics.reflectiveObjects.WildcardTypeImpl=ALL-UNNAMED \
+-jar /apps/bootstrap.jar \
+-Duser.timezone=Asia/Shanghai \
+-Dlog4j2.formatMsgNoLookups=true \
+-Dljava.awt.headless=true  \
+-Dlsun.java2d.headless=true  \
+-Dljava.awt.headless.fontconfig=true

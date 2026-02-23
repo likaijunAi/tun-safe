@@ -1,0 +1,99 @@
+### 项目 `tun-safe` 说明文档
+
+#### 1. **项目概述**
+`tun-safe` 是一个基于 Kotlin 开发的网络隧道工具，支持通过 TCP 协议伪装 UDP 流量，实现安全的数据传输。项目分为两个核心模块：
+- **`tun-safe-bootstrap`**：启动模块，提供命令行入口和参数解析。
+- **`tun-safe-core`**：核心功能模块，实现 UDP over TCP 的数据转发逻辑。
+
+#### 2. **功能特性**
+- **支持两种运行模式**：
+  - **服务端模式 (`server`)**：
+    - 监听指定 TCP 端口，将接收到的数据转发到目标 UDP 地址。
+  - **客户端模式 (`client`)**：
+    - 绑定本地 UDP 端口，将数据通过 TCP 协议发送到远程服务端。
+- **动态日志配置**：
+  - 默认日志级别为 `INFO`，可通过环境变量 `LOG_LEVEL` 调整。
+  - 日志输出到控制台，格式包含时间、线程、日志级别和消息。
+- **灵活的依赖管理**：
+  - 通过 Gradle 构建，模块间依赖清晰。
+
+#### 3. **快速开始**
+##### 3.1 构建项目
+```bash
+./gradlew build
+```
+
+##### 3.2 运行服务端
+```bash
+./gradlew :tun-safe-bootstrap:run --args="mode=server tcpBindPort=8080 targetUdpHost=127.0.0.1 targetUdpPort=9090"
+```
+
+##### 3.3 运行客户端
+```bash
+./gradlew :tun-safe-bootstrap:run --args="mode=client udpBindHost=127.0.0.1 udpBindPort=7070 remoteTcpHost=192.168.1.100 remoteTcpPort=8080"
+```
+
+#### 4. **Docker 支持**
+##### 4.1 构建 Docker 镜像
+```bash
+docker build -t tun-safe .
+```
+
+##### 4.2 运行服务端
+```bash
+docker run -d \
+  --name safe-server \
+  --restart always \
+  --network host \
+  -v "$(pwd)":/apps \
+  -e MODE=server \
+  -e TCP_BIND_HOST=0.0.0.0 \
+  -e TCP_BIND_PORT=9090 \
+  -e TARGET_UDP_HOST=10.3.4.2 \
+  -e TARGET_UDP_PORT=3478 \
+  -e DEBUG=true \
+  tun-safe
+```
+
+##### 4.3 运行客户端
+```bash
+docker run -d \
+  --name safe-client \
+  --restart always \
+  --network host \
+  -v "$(pwd)":/apps \
+  -e MODE=client \
+  -e UDP_BIND_HOST=0.0.0.0 \
+  -e UDP_BIND_PORT=8080 \
+  -e REMOTE_TCP_HOST=xx.xx.94.89 \
+  -e REMOTE_TCP_PORT=9090 \
+  -e DEBUG=true \
+  tun-safe
+```
+
+#### 5. **参数说明**
+| 参数名           | 描述                                                                 | 必填 |
+|------------------|----------------------------------------------------------------------|------|
+| `mode`           | 运行模式：`server` 或 `client`。                                     | 是   |
+| `tcpBindPort`    | 服务端监听的 TCP 端口。                                              | 是   |
+| `targetUdpHost`  | 服务端转发的目标 UDP 地址（服务端模式）。                            | 是   |
+| `targetUdpPort`  | 服务端转发的目标 UDP 端口（服务端模式）。                            | 是   |
+| `udpBindHost`    | 客户端绑定的本地 UDP 地址（客户端模式）。                            | 否   |
+| `udpBindPort`    | 客户端绑定的本地 UDP 端口（客户端模式）。                            | 否   |
+| `remoteTcpHost`  | 客户端连接的远程 TCP 地址（客户端模式）。                            | 是   |
+| `remoteTcpPort`  | 客户端连接的远程 TCP 端口（客户端模式）。                            | 是   |
+
+#### 6. **日志配置**
+- 默认日志级别为 `INFO`，可通过环境变量 `LOG_LEVEL` 动态调整（如 `DEBUG`、`ERROR`）。
+- 日志输出格式：
+  ```
+  HH:mm:ss.SSS [thread] LEVEL logger - message
+  ```
+
+#### 7. **模块依赖**
+- **`tun-safe-bootstrap`** 依赖 **`tun-safe-core`**，通过 Gradle 的 `implementation(project(":tun-safe-core"))` 声明。
+
+#### 8. **后续计划**
+- 支持配置文件加载参数。
+- 增强日志功能，记录端口绑定和模式切换的详细信息。
+- 优化 `TunnelManager` 的性能和稳定性。
