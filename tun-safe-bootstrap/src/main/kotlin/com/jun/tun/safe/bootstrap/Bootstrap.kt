@@ -1,6 +1,7 @@
 package com.jun.tun.safe.bootstrap
 
 import com.jun.tun.safe.core.manager.TunnelManager
+import com.jun.tun.safe.core.protocol.PacketProtocol
 
 
 /**
@@ -13,6 +14,7 @@ class Bootstrap
 
 fun main(args: Array<String>) {
     val parm = Parm()
+    PacketProtocol.setAuthToken(parm.authToken)
     when (parm.mode) {
         "server" -> {
             startServer(parm)
