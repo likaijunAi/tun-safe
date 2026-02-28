@@ -51,6 +51,7 @@ docker run -d \
   -e TARGET_UDP_HOST=10.3.4.2 \
   -e TARGET_UDP_PORT=3478 \
   -e DEBUG=true \
+  -e AUTH_TOKEN=replace-with-strong-token \
   registry.cn-hangzhou.aliyuncs.com/junhub/tun-safe:1.0.1
 ```
 
@@ -66,6 +67,7 @@ docker run -d \
   -e REMOTE_TCP_HOST=xx.xx.94.89 \
   -e REMOTE_TCP_PORT=9090 \
   -e DEBUG=true \
+  -e AUTH_TOKEN=replace-with-strong-token \
   registry.cn-hangzhou.aliyuncs.com/junhub/tun-safe:1.0.1
 ```
 
@@ -80,6 +82,7 @@ docker run -d \
 | `udpBindPort`    | 客户端绑定的本地 UDP 端口（客户端模式）。                            | 否   |
 | `remoteTcpHost`  | 客户端连接的远程 TCP 地址（客户端模式）。                            | 是   |
 | `remoteTcpPort`  | 客户端连接的远程 TCP 端口（客户端模式）。                            | 是   |
+| `authToken`      | 隧道鉴权令牌（通过环境变量 `AUTH_TOKEN` 配置，客户端与服务端需一致）。 | 是   |
 
 #### 6. **日志配置**
 - 默认日志级别为 `INFO`，可通过环境变量 `LOG_LEVEL` 动态调整（如 `DEBUG`、`ERROR`）。
