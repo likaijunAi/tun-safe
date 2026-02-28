@@ -94,8 +94,7 @@ docker run -d \
 #### 7. **模块依赖**
 - **`tun-safe-bootstrap`** 依赖 **`tun-safe-core`**，通过 Gradle 的 `implementation(project(":tun-safe-core"))` 声明。
 
-#### 8. **后续计划**
-- 支持配置文件加载参数。
+#### 8. **后续计划** 
 - 增强日志功能，记录端口绑定和模式切换的详细信息。
 - 优化 `TunnelManager` 的性能和稳定性。
 
@@ -198,8 +197,7 @@ docker run -d \
 - **`tun-safe-bootstrap`** depends on **`tun-safe-core`** through Gradle:
   `implementation(project(":tun-safe-core"))`.
 
-#### 8. **Roadmap**
-- Add configuration-file-based argument loading.
+#### 8. **Roadmap** 
 - Improve logging with richer runtime context.
 - Optimize `TunnelManager` performance and stability.
 
