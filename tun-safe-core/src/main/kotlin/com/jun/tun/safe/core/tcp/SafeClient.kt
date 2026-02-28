@@ -216,7 +216,7 @@ class SafeClient(
             ctx.fireChannelRead(msg)
             return
         }
-
+        logger.debug("Received TCP packet  size: {} bytes",  msg.size)
         try {
             val udpPacket = PacketProtocol.decodeTcpToUdp(msg) ?: return
             val buffer = Unpooled.copiedBuffer(udpPacket)
@@ -235,6 +235,7 @@ class SafeClient(
         ctx.fireChannelInactive()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         logger.error("SafeClient exception {}:{}", remoteHost, remotePort, cause)
         ctx.close()

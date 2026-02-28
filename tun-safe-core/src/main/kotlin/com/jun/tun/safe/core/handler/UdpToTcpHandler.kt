@@ -160,6 +160,7 @@ class UdpToTcpHandler(
         ctx.fireChannelInactive()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         logger.error("UDP handler exception from {}", ctx.channel().remoteAddress(), cause)
         ctx.close()

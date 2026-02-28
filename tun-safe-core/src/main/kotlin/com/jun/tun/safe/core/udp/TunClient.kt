@@ -170,6 +170,8 @@ class TunClient(
             val data = ByteArray(msg.content().readableBytes())
             msg.content().readBytes(data)
 
+            logger.debug("Received UDP packet from {}, size: {} bytes", targetHost, data.size)
+
             val tcpPacket = PacketProtocol.encodeUdpToTcp(data) ?: return
 
             // 转发到 TCP
@@ -222,7 +224,7 @@ class TunClient(
             out.add(datagramPacket)
         }
 
-        @Deprecated("Deprecated in Java")
+        @Deprecated("Deprecated in Java", ReplaceWith("ctx.fireExceptionCaught(cause)"))
         override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
             ctx.fireExceptionCaught(cause)
         }
