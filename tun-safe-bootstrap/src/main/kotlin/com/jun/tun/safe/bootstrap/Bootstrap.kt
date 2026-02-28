@@ -13,15 +13,17 @@ import com.jun.tun.safe.core.protocol.PacketProtocol
 class Bootstrap
 
 fun main(args: Array<String>) {
-    val param = Param()
+    val param = LoadConf.loadParam()
     PacketProtocol.setAuthToken(param.authToken)
     when (param.mode) {
         "server" -> {
             startServer(param)
         }
+
         "client" -> {
             startClient(param)
         }
+
         else -> {
             throw IllegalArgumentException("Invalid mode: ${param.mode}")
         }
@@ -32,6 +34,7 @@ fun startServer(param: Param) {
     param.targetUdpHost ?: throw IllegalArgumentException("targetUdpHost is required")
     val manager = TunnelManager()
     manager.startServerMode(
+        tcpBindHost = param.tcpBindHost,
         tcpBindPort = param.tcpBindPort,
         targetUdpHost = param.targetUdpHost!!,
         targetUdpPort = param.targetUdpPort

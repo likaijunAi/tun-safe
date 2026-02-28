@@ -17,14 +17,13 @@ class Param {
     var udpBindPort: Int = env("UDP_BIND_PORT", 8080)
     var remoteTcpHost: String? = envNullable("REMOTE_TCP_HOST")
     var remoteTcpPort: Int = env("REMOTE_TCP_PORT", 9090)
+    var authToken: String = env("AUTH_TOKEN", "tun-safe-token")
 
     var debug: Boolean = env("DEBUG", "false").toBoolean()
         set(value) {
             field = value
             System.setProperty("LOG_LEVEL", if (value) "DEBUG" else "INFO")
         }
-
-    var authToken: String = env("AUTH_TOKEN", "tun-safe-token")
 
     init {
         System.setProperty("LOG_LEVEL", if (debug) "DEBUG" else "INFO")
@@ -46,7 +45,7 @@ class Param {
 
     override fun toString(): String {
         return """
-            Parm(
+            Param(
               mode=$mode,
               tcpBindHost=$tcpBindHost, tcpBindPort=$tcpBindPort,
               targetUdpHost=$targetUdpHost, targetUdpPort=$targetUdpPort,
