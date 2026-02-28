@@ -1,15 +1,19 @@
 package com.jun.tun.safe.core.protocol
 
 import io.netty.buffer.ByteBuf
+import java.util.concurrent.atomic.AtomicReference
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * UDP to TCP tunnel packet protocol definition
  *
  * Protocol format:
- * [Magic Number(4 bytes)] + [Data Length(4 bytes)] + [UDP Data(n bytes)]
+ * [Magic Number(4 bytes)] + [Data Length(4 bytes)] + [AuthTag(16 bytes)] + [UDP Data(n bytes)]
  *
  * Magic Number: 0x12345678 - used to identify protocol packets
  * Data Length: actual length of subsequent UDP data (big-endian, unsigned int)
+ * AuthTag: HMAC-SHA256 截断前16字节，用于鉴权
  * UDP Data: original UDP packet content
  *
  * @author leolee
@@ -20,8 +24,11 @@ object PacketProtocol {
     /** Protocol magic number, used to identify valid packets */
     const val MAGIC_NUMBER: Int = 0x12345678
 
-    /** Header total length (Magic Number + Data Length) */
-    const val HEADER_LENGTH: Int = 8
+    /** Auth tag length (first 16 bytes of HMAC-SHA256) */
+    private const val AUTH_TAG_LENGTH: Int = 16
+
+    /** Header total length (Magic Number + Data Length + AuthTag) */
+    const val HEADER_LENGTH: Int = 8 + AUTH_TAG_LENGTH
 
     /** Maximum packet size (64KB) */
     const val MAX_PACKET_SIZE: Int = 65536
@@ -36,6 +43,13 @@ object PacketProtocol {
         0x56.toByte(),
         0x78.toByte()
     )
+
+    private val authSecret = AtomicReference("tun-safe-token".toByteArray(Charsets.UTF_8))
+
+    fun setAuthToken(token: String) {
+        require(token.isNotBlank()) { "AUTH_TOKEN must not be blank" }
+        authSecret.set(token.toByteArray(Charsets.UTF_8))
+    }
 
     /**
      * Encapsulate UDP data into TCP transmission format
@@ -65,6 +79,10 @@ object PacketProtocol {
         result[5] = (dataLength ushr 16).toByte()
         result[6] = (dataLength ushr 8).toByte()
         result[7] = dataLength.toByte()
+
+        // 写入鉴权标签
+        val authTag = createAuthTag(udpData)
+        System.arraycopy(authTag, 0, result, 8, AUTH_TAG_LENGTH)
 
         // 写入UDP数据
         System.arraycopy(udpData, 0, result, HEADER_LENGTH, udpData.size)
@@ -102,7 +120,14 @@ object PacketProtocol {
         }
 
         // 提取UDP数据
-        return tcpData.copyOfRange(HEADER_LENGTH, expectedSize)
+        val udpData = tcpData.copyOfRange(HEADER_LENGTH, expectedSize)
+
+        // 鉴权校验
+        if (!verifyAuthTag(tcpData, udpData)) {
+            return null
+        }
+
+        return udpData
     }
 
     /**
@@ -134,6 +159,9 @@ object PacketProtocol {
             return null
         }
 
+        val authTag = ByteArray(AUTH_TAG_LENGTH)
+        buffer.readBytes(authTag)
+
         // 检查剩余数据
         if (buffer.readableBytes() < dataLength) {
             buffer.resetReaderIndex()
@@ -143,6 +171,11 @@ object PacketProtocol {
         // 读取数据
         val result = ByteArray(dataLength)
         buffer.readBytes(result)
+
+        if (!authTag.contentEquals(createAuthTag(result))) {
+            return null
+        }
+
         return result
     }
 
@@ -163,6 +196,7 @@ object PacketProtocol {
 
         buffer.writeInt(MAGIC_NUMBER)
         buffer.writeInt(udpData.size)
+        buffer.writeBytes(createAuthTag(udpData))
         buffer.writeBytes(udpData)
 
         return buffer
@@ -230,5 +264,19 @@ object PacketProtocol {
                 ((data[offset + 1].toInt() and 0xFF) shl 16) or
                 ((data[offset + 2].toInt() and 0xFF) shl 8) or
                 (data[offset + 3].toInt() and 0xFF)
+    }
+
+    private fun verifyAuthTag(packet: ByteArray, udpData: ByteArray): Boolean {
+        val authTagStart = 8
+        val authTagEnd = authTagStart + AUTH_TAG_LENGTH
+        val actualTag = packet.copyOfRange(authTagStart, authTagEnd)
+        return actualTag.contentEquals(createAuthTag(udpData))
+    }
+
+    private fun createAuthTag(udpData: ByteArray): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(authSecret.get(), "HmacSHA256"))
+        val digest = mac.doFinal(udpData)
+        return digest.copyOfRange(0, AUTH_TAG_LENGTH)
     }
 }

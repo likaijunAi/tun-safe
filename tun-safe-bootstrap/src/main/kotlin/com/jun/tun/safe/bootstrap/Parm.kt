@@ -24,6 +24,8 @@ class Parm {
             System.setProperty("LOG_LEVEL", if (value) "DEBUG" else "INFO")
         }
 
+    var authToken: String = env("AUTH_TOKEN", "tun-safe-token")
+
     init {
         System.setProperty("LOG_LEVEL", if (debug) "DEBUG" else "INFO")
     }
@@ -50,7 +52,7 @@ class Parm {
               targetUdpHost=$targetUdpHost, targetUdpPort=$targetUdpPort,
               udpBindHost=$udpBindHost, udpBindPort=$udpBindPort,
               remoteTcpHost=$remoteTcpHost, remoteTcpPort=$remoteTcpPort,
-              debug=$debug
+              debug=$debug, authToken=${authToken.take(2)}***
             )
         """.trimIndent()
     }
