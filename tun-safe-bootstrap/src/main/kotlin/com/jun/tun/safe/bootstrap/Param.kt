@@ -6,7 +6,7 @@ package com.jun.tun.safe.bootstrap
  * l@xsocket.cn
  * create 2026/2/22 23:35
  **/
-class Parm {
+class Param {
     var mode: String = env("MODE", "server")
     var tcpBindHost: String = env("TCP_BIND_HOST", "0.0.0.0")
     var tcpBindPort: Int = env("TCP_BIND_PORT", 9090)

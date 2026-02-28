@@ -13,38 +13,38 @@ import com.jun.tun.safe.core.protocol.PacketProtocol
 class Bootstrap
 
 fun main(args: Array<String>) {
-    val parm = Parm()
-    PacketProtocol.setAuthToken(parm.authToken)
-    when (parm.mode) {
+    val param = Param()
+    PacketProtocol.setAuthToken(param.authToken)
+    when (param.mode) {
         "server" -> {
-            startServer(parm)
+            startServer(param)
         }
         "client" -> {
-            startClient(parm)
+            startClient(param)
         }
         else -> {
-            throw IllegalArgumentException("Invalid mode: ${parm.mode}")
+            throw IllegalArgumentException("Invalid mode: ${param.mode}")
         }
     }
 }
 
-fun startServer(parm: Parm) {
-    parm.targetUdpHost ?: throw IllegalArgumentException("targetUdpHost is required")
+fun startServer(param: Param) {
+    param.targetUdpHost ?: throw IllegalArgumentException("targetUdpHost is required")
     val manager = TunnelManager()
     manager.startServerMode(
-        tcpBindPort = parm.tcpBindPort,
-        targetUdpHost = parm.targetUdpHost!!,
-        targetUdpPort = parm.targetUdpPort
+        tcpBindPort = param.tcpBindPort,
+        targetUdpHost = param.targetUdpHost!!,
+        targetUdpPort = param.targetUdpPort
     )
 }
 
-fun startClient(parm: Parm) {
-    parm.remoteTcpHost ?: throw IllegalArgumentException("remoteTcpHost is required")
+fun startClient(param: Param) {
+    param.remoteTcpHost ?: throw IllegalArgumentException("remoteTcpHost is required")
     val manager = TunnelManager()
     manager.startClientMode(
-        udpBindHost = parm.udpBindHost,
-        udpBindPort = parm.udpBindPort,
-        remoteTcpHost = parm.remoteTcpHost!!,
-        remoteTcpPort = parm.remoteTcpPort
+        udpBindHost = param.udpBindHost,
+        udpBindPort = param.udpBindPort,
+        remoteTcpHost = param.remoteTcpHost!!,
+        remoteTcpPort = param.remoteTcpPort
     )
 }
