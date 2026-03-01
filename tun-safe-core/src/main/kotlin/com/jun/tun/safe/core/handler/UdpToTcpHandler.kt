@@ -90,11 +90,14 @@ class UdpToTcpHandler(
         val safeClient = SafeClient(
             targetTcpHost,
             targetTcpPort,
-            socketAddress.hostString,
-            socketAddress.port,
-            channel,
             sharedWorkerGroup
-        )
+        ).apply {
+            setUdpClient(
+                socketAddress.hostString,
+                socketAddress.port,
+                channel,
+            )
+        }
 
         safeClient.onDisconnect = {
             logger.info("TCP client disconnected, removing {}", addressKey)
@@ -107,16 +110,23 @@ class UdpToTcpHandler(
                     logger.error("Exception while creating TCP client for {} (attempt {})", addressKey, attempt, error)
                     scheduleRetry(socketAddress, addressKey, channel, attemptCounter, originalCallback)
                 }
+
                 success -> {
                     val prev = connections.putIfAbsent(addressKey, safeClient)
                     if (prev != null && prev.isConnected()) {
                         safeClient.shutdown()
                         completeConnection(addressKey, prev, originalCallback)
                     } else {
-                        logger.info("TCP connection established for {} -> {}:{}", addressKey, targetTcpHost, targetTcpPort)
+                        logger.info(
+                            "TCP connection established for {} -> {}:{}",
+                            addressKey,
+                            targetTcpHost,
+                            targetTcpPort
+                        )
                         completeConnection(addressKey, safeClient, originalCallback)
                     }
                 }
+
                 else -> {
                     logger.error("Failed to connect TCP server for {} (attempt {})", addressKey, attempt)
                     scheduleRetry(socketAddress, addressKey, channel, attemptCounter, originalCallback)

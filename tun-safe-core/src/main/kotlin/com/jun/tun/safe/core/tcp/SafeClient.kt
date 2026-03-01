@@ -21,9 +21,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 class SafeClient(
     private val remoteHost: String,
     private val remotePort: Int,
-    private val udpClientHost: String,
-    private val udpClientPort: Int,
-    private val udpChannel: Channel,
     sharedWorkerGroup: EventLoopGroup? = null
 ) : ChannelDuplexHandler() {
 
@@ -43,7 +40,17 @@ class SafeClient(
 
     var onDisconnect: ((SafeClient) -> Unit)? = null
 
-    private val targetAddress = InetSocketAddress(udpClientHost, udpClientPort)
+    private var udpClientHost: String? = null
+    private var udpClientPort: Int? = null
+    private var udpChannel: Channel? = null
+
+    private val targetAddress by lazy { InetSocketAddress(remoteHost, remotePort) }
+
+    fun setUdpClient(host: String, port: Int, channel: Channel) {
+        this.udpClientHost = host
+        this.udpClientPort = port
+        this.udpChannel = channel
+    }
 
     /**
      * 启动 TCP 客户端，返回是否成功
@@ -107,10 +114,12 @@ class SafeClient(
         pipeline.addLast("frameEncoder", LengthFieldPrepender(4))
         pipeline.addLast("bytesEncoder", ByteArrayEncoder())
 
-        pipeline.addLast("frameDecoder", LengthFieldBasedFrameDecoder(
-            PacketProtocol.MAX_PACKET_SIZE,
-            0, 4, 0, 4
-        ))
+        pipeline.addLast(
+            "frameDecoder", LengthFieldBasedFrameDecoder(
+                PacketProtocol.MAX_PACKET_SIZE,
+                0, 4, 0, 4
+            )
+        )
         pipeline.addLast("bytesDecoder", ByteArrayDecoder())
         pipeline.addLast("tcpToUdp", this)
     }
@@ -120,6 +129,10 @@ class SafeClient(
      */
     private fun sendUdpData(data: DatagramPacket): Boolean {
         val ch = udpChannel
+        if (ch == null) {
+            logger.warn("UDP channel not ready")
+            return false
+        }
         if (!ch.isActive) {
             logger.warn("UDP channel not active")
             return false
@@ -216,7 +229,7 @@ class SafeClient(
             ctx.fireChannelRead(msg)
             return
         }
-        logger.debug("Received TCP packet  size: {} bytes",  msg.size)
+        logger.debug("Received TCP packet  size: {} bytes", msg.size)
         try {
             val udpPacket = PacketProtocol.decodeTcpToUdp(msg) ?: return
             val buffer = Unpooled.copiedBuffer(udpPacket)
