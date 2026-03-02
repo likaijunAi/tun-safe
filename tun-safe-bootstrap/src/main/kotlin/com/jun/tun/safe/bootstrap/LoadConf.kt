@@ -44,6 +44,7 @@ object LoadConf {
             props.getProperty("udp.bind.port")?.toIntOrNull()?.let { udpBindPort = it }
             props.getProperty("remote.tcp.host")?.let { remoteTcpHost = it }
             props.getProperty("remote.tcp.port")?.toIntOrNull()?.let { remoteTcpPort = it }
+            props.getProperty("initial.client.pool.size")?.toIntOrNull()?.let { initialClientPoolSize = it }
             props.getProperty("auth.token")?.let { authToken = it }
             props.getProperty("debug")?.toBooleanStrictOrNull()?.let { debug = it }
         }

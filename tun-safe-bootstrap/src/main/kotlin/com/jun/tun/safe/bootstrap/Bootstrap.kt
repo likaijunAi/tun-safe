@@ -15,6 +15,7 @@ class Bootstrap
 fun main(args: Array<String>) {
     val param = LoadConf.loadParam()
     PacketProtocol.setAuthToken(param.authToken)
+
     when (param.mode) {
         "server" -> {
             startServer(param)
@@ -48,6 +49,7 @@ fun startClient(param: Param) {
         udpBindHost = param.udpBindHost,
         udpBindPort = param.udpBindPort,
         remoteTcpHost = param.remoteTcpHost!!,
-        remoteTcpPort = param.remoteTcpPort
+        remoteTcpPort = param.remoteTcpPort,
+        initialPoolSize = param.initialClientPoolSize
     )
 }

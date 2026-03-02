@@ -1,5 +1,6 @@
 package com.jun.tun.safe.core.manager
 
+import com.jun.tun.safe.core.protocol.PacketProtocol
 import com.jun.tun.safe.core.tcp.SafeServer
 import com.jun.tun.safe.core.udp.TunServer
 import io.netty.channel.EventLoopGroup
@@ -34,6 +35,7 @@ class TunnelManager(
     // 组件实例
     @Volatile
     private var tunServer: TunServer? = null
+
     @Volatile
     private var safeServer: SafeServer? = null
 
@@ -70,7 +72,7 @@ class TunnelManager(
         mode.set(Mode.SERVER)
 
         logger.info("Starting server mode...")
-        logger.info("TCP bind: {}:{}", tcpBindHost, tcpBindPort)
+        logger.info("TCP bind: {}:{} (AuthEnabled:{})", tcpBindHost, tcpBindPort, PacketProtocol.isAuthEnabled())
         logger.info("Target UDP: {}:{}", targetUdpHost, targetUdpPort)
 
         try {
@@ -118,7 +120,8 @@ class TunnelManager(
         udpBindHost: String = "0.0.0.0",
         udpBindPort: Int,
         remoteTcpHost: String,
-        remoteTcpPort: Int
+        remoteTcpPort: Int,
+        initialPoolSize: Int = 0,
     ): CompletableFuture<Void> {
         val future = CompletableFuture<Void>()
 
@@ -127,9 +130,11 @@ class TunnelManager(
                 logger.info("Upgrading to dual mode, adding client component...")
                 mode.set(Mode.DUAL)
             } else {
-                future.completeExceptionally(IllegalStateException(
-                    "Manager already started in mode: ${mode.get()}"
-                ))
+                future.completeExceptionally(
+                    IllegalStateException(
+                        "Manager already started in mode: ${mode.get()}"
+                    )
+                )
                 return future
             }
         } else {
@@ -138,7 +143,7 @@ class TunnelManager(
 
         logger.info("Starting client mode...")
         logger.info("UDP bind: {}:{}", udpBindHost, udpBindPort)
-        logger.info("Remote TCP: {}:{}", remoteTcpHost, remoteTcpPort)
+        logger.info("Remote TCP: {}:{} (AuthEnabled:{})", remoteTcpHost, remoteTcpPort, PacketProtocol.isAuthEnabled())
 
         try {
             ensureSharedGroups()
@@ -148,6 +153,7 @@ class TunnelManager(
                 bindPort = udpBindPort,
                 tcpTargetHost = remoteTcpHost,
                 tcpTargetPort = remoteTcpPort,
+                initialPoolSize = initialPoolSize,
                 externalWorkerGroup = sharedWorkerGroup
             )
 

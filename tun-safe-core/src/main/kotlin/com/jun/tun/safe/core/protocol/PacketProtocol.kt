@@ -8,12 +8,15 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * UDP to TCP tunnel packet protocol definition
  *
- * Protocol format:
+ * Protocol format (with auth):
  * [Magic Number(4 bytes)] + [Data Length(4 bytes)] + [AuthTag(16 bytes)] + [UDP Data(n bytes)]
+ *
+ * Protocol format (without auth):
+ * [Magic Number(4 bytes)] + [Data Length(4 bytes)] + [UDP Data(n bytes)]
  *
  * Magic Number: 0x12345678 - used to identify protocol packets
  * Data Length: actual length of subsequent UDP data (big-endian, unsigned int)
- * AuthTag: HMAC-SHA256 截断前16字节，用于鉴权
+ * AuthTag: HMAC-SHA256 截断前16字节，用于鉴权（可选）
  * UDP Data: original UDP packet content
  *
  * @author leolee
@@ -22,19 +25,19 @@ import javax.crypto.spec.SecretKeySpec
 object PacketProtocol {
 
     /** Protocol magic number, used to identify valid packets */
-    const val MAGIC_NUMBER: Int = 0x12345678
+    private const val MAGIC_NUMBER: Int = 0x12345678
 
     /** Auth tag length (first 16 bytes of HMAC-SHA256) */
     private const val AUTH_TAG_LENGTH: Int = 16
 
-    /** Header total length (Magic Number + Data Length + AuthTag) */
-    const val HEADER_LENGTH: Int = 8 + AUTH_TAG_LENGTH
+    /** Base header length (Magic Number + Data Length) */
+    private const val BASE_HEADER_LENGTH: Int = 8
+
+    /** Auth header length (AuthTag) */
+    private const val AUTH_HEADER_LENGTH: Int = AUTH_TAG_LENGTH
 
     /** Maximum packet size (64KB) */
     const val MAX_PACKET_SIZE: Int = 65536
-
-    /** Minimum valid packet size */
-    const val MIN_PACKET_SIZE: Int = HEADER_LENGTH
 
     /** Magic number bytes (大端序缓存，避免重复计算) */
     private val MAGIC_BYTES = byteArrayOf(
@@ -44,12 +47,39 @@ object PacketProtocol {
         0x78.toByte()
     )
 
-    private val authSecret = AtomicReference("tun-safe-token".toByteArray(Charsets.UTF_8))
+    /** 鉴权密钥，null 表示不启用鉴权 */
+    private val authSecret = AtomicReference<ByteArray?>(null)
 
-    fun setAuthToken(token: String) {
-        require(token.isNotBlank()) { "AUTH_TOKEN must not be blank" }
-        authSecret.set(token.toByteArray(Charsets.UTF_8))
+    /**
+     * 设置鉴权令牌，传入 null 或空字符串表示禁用鉴权
+     */
+    fun setAuthToken(token: String?) {
+        if (token.isNullOrBlank()) {
+            authSecret.set(null)
+        } else {
+            authSecret.set(token.toByteArray(Charsets.UTF_8))
+        }
     }
+
+    /**
+     * 获取当前鉴权密钥（用于调试，生产环境慎用）
+     */
+    fun getAuthSecret(): ByteArray? = authSecret.get()
+
+    /**
+     * 检查是否启用了鉴权
+     */
+    fun isAuthEnabled(): Boolean = authSecret.get() != null
+
+    /**
+     * 获取当前头部总长度（根据是否启用鉴权动态计算）
+     */
+    private fun getHeaderLength(): Int = if (isAuthEnabled()) BASE_HEADER_LENGTH + AUTH_HEADER_LENGTH else BASE_HEADER_LENGTH
+
+    /**
+     * 获取最小有效包大小
+     */
+    private fun getMinPacketSize(): Int = getHeaderLength()
 
     /**
      * Encapsulate UDP data into TCP transmission format
@@ -63,11 +93,12 @@ object PacketProtocol {
             return null
         }
 
-        if (udpData.size > MAX_PACKET_SIZE - HEADER_LENGTH) {
+        val headerLength = getHeaderLength()
+        if (udpData.size > MAX_PACKET_SIZE - headerLength) {
             return null // 超过最大限制
         }
 
-        val packetSize = HEADER_LENGTH + udpData.size
+        val packetSize = headerLength + udpData.size
         val result = ByteArray(packetSize)
 
         // 写入魔数 (使用缓存的字节数组，避免位运算)
@@ -80,12 +111,16 @@ object PacketProtocol {
         result[6] = (dataLength ushr 8).toByte()
         result[7] = dataLength.toByte()
 
-        // 写入鉴权标签
-        val authTag = createAuthTag(udpData)
-        System.arraycopy(authTag, 0, result, 8, AUTH_TAG_LENGTH)
-
-        // 写入UDP数据
-        System.arraycopy(udpData, 0, result, HEADER_LENGTH, udpData.size)
+        // 如果启用鉴权，写入鉴权标签
+        if (isAuthEnabled()) {
+            val authTag = createAuthTag(udpData)
+            System.arraycopy(authTag, 0, result, BASE_HEADER_LENGTH, AUTH_TAG_LENGTH)
+            // 写入UDP数据
+            System.arraycopy(udpData, 0, result, headerLength, udpData.size)
+        } else {
+            // 未启用鉴权，直接写入UDP数据
+            System.arraycopy(udpData, 0, result, BASE_HEADER_LENGTH, udpData.size)
+        }
 
         return result
     }
@@ -97,8 +132,10 @@ object PacketProtocol {
      * @return parsed raw UDP data, returns null if not a valid protocol packet
      */
     fun decodeTcpToUdp(tcpData: ByteArray): ByteArray? {
+        val headerLength = getHeaderLength()
+
         // 长度检查
-        if (tcpData.size < MIN_PACKET_SIZE) {
+        if (tcpData.size < headerLength) {
             return null // 数据不完整
         }
 
@@ -109,22 +146,24 @@ object PacketProtocol {
 
         // 读取数据长度 (大端序，无符号)
         val dataLength = readIntBigEndian(tcpData, 4)
-        if (dataLength < 0 || dataLength > MAX_PACKET_SIZE - HEADER_LENGTH) {
+        if (dataLength < 0 || dataLength > MAX_PACKET_SIZE - headerLength) {
             return null // 非法长度
         }
 
         // 验证数据完整性
-        val expectedSize = HEADER_LENGTH + dataLength
+        val expectedSize = headerLength + dataLength
         if (tcpData.size != expectedSize) {
             return null // 长度不匹配
         }
 
         // 提取UDP数据
-        val udpData = tcpData.copyOfRange(HEADER_LENGTH, expectedSize)
+        val udpData = tcpData.copyOfRange(headerLength, expectedSize)
 
-        // 鉴权校验
-        if (!verifyAuthTag(tcpData, udpData)) {
-            return null
+        // 如果启用鉴权，进行鉴权校验
+        if (isAuthEnabled()) {
+            if (!verifyAuthTag(tcpData, udpData)) {
+                return null
+            }
         }
 
         return udpData
@@ -138,7 +177,9 @@ object PacketProtocol {
      * @return 解析后的字节数组，或 null
      */
     fun decodeFromByteBuf(buffer: ByteBuf): ByteArray? {
-        if (buffer.readableBytes() < MIN_PACKET_SIZE) {
+        val headerLength = getHeaderLength()
+
+        if (buffer.readableBytes() < headerLength) {
             return null
         }
 
@@ -154,29 +195,43 @@ object PacketProtocol {
 
         // 读取长度
         val dataLength = buffer.readInt()
-        if (dataLength < 0 || dataLength > MAX_PACKET_SIZE - HEADER_LENGTH) {
+        if (dataLength < 0 || dataLength > MAX_PACKET_SIZE - headerLength) {
             buffer.resetReaderIndex()
             return null
         }
 
-        val authTag = ByteArray(AUTH_TAG_LENGTH)
-        buffer.readBytes(authTag)
+        // 如果启用鉴权，读取并验证鉴权标签
+        if (isAuthEnabled()) {
+            val authTag = ByteArray(AUTH_TAG_LENGTH)
+            buffer.readBytes(authTag)
 
-        // 检查剩余数据
-        if (buffer.readableBytes() < dataLength) {
-            buffer.resetReaderIndex()
-            return null // 数据不完整，等待更多数据
+            // 检查剩余数据
+            if (buffer.readableBytes() < dataLength) {
+                buffer.resetReaderIndex()
+                return null // 数据不完整，等待更多数据
+            }
+
+            // 读取数据
+            val result = ByteArray(dataLength)
+            buffer.readBytes(result)
+
+            // 鉴权校验
+            if (!authTag.contentEquals(createAuthTag(result))) {
+                return null
+            }
+
+            return result
+        } else {
+            // 未启用鉴权，直接读取数据
+            if (buffer.readableBytes() < dataLength) {
+                buffer.resetReaderIndex()
+                return null // 数据不完整，等待更多数据
+            }
+
+            val result = ByteArray(dataLength)
+            buffer.readBytes(result)
+            return result
         }
-
-        // 读取数据
-        val result = ByteArray(dataLength)
-        buffer.readBytes(result)
-
-        if (!authTag.contentEquals(createAuthTag(result))) {
-            return null
-        }
-
-        return result
     }
 
     /**
@@ -187,16 +242,25 @@ object PacketProtocol {
      * @return 编码后的 ByteBuf
      */
     fun encodeToByteBuf(allocator: io.netty.buffer.ByteBufAllocator, udpData: ByteArray): ByteBuf? {
-        if (udpData.isEmpty() || udpData.size > MAX_PACKET_SIZE - HEADER_LENGTH) {
+        if (udpData.isEmpty()) {
             return null
         }
 
-        val packetSize = HEADER_LENGTH + udpData.size
+        val headerLength = getHeaderLength()
+        if (udpData.size > MAX_PACKET_SIZE - headerLength) {
+            return null
+        }
+
+        val packetSize = headerLength + udpData.size
         val buffer = allocator.buffer(packetSize, packetSize)
 
         buffer.writeInt(MAGIC_NUMBER)
         buffer.writeInt(udpData.size)
-        buffer.writeBytes(createAuthTag(udpData))
+
+        if (isAuthEnabled()) {
+            buffer.writeBytes(createAuthTag(udpData))
+        }
+
         buffer.writeBytes(udpData)
 
         return buffer
@@ -209,7 +273,7 @@ object PacketProtocol {
      * @return 是否为有效头部
      */
     fun isValidHeader(headerData: ByteArray): Boolean {
-        return headerData.size >= HEADER_LENGTH && checkMagicNumber(headerData)
+        return headerData.size >= getMinPacketSize() && checkMagicNumber(headerData)
     }
 
     /**
@@ -219,11 +283,12 @@ object PacketProtocol {
      * @return 数据长度，或 -1 如果无效
      */
     fun getDataLengthFromHeader(headerData: ByteArray): Int {
-        if (headerData.size < HEADER_LENGTH) {
+        val headerLength = getHeaderLength()
+        if (headerData.size < headerLength) {
             return -1
         }
         val length = readIntBigEndian(headerData, 4)
-        return if (length in 0..(MAX_PACKET_SIZE - HEADER_LENGTH)) length else -1
+        return if (length in 0..(MAX_PACKET_SIZE - headerLength)) length else -1
     }
 
     /**
@@ -239,7 +304,7 @@ object PacketProtocol {
         val dataLength = getDataLengthFromHeader(headerData)
         if (dataLength < 0) return -1
 
-        val totalNeeded = HEADER_LENGTH + dataLength
+        val totalNeeded = getHeaderLength() + dataLength
         return if (headerData.size >= totalNeeded) 0 else totalNeeded - headerData.size
     }
 
@@ -267,15 +332,16 @@ object PacketProtocol {
     }
 
     private fun verifyAuthTag(packet: ByteArray, udpData: ByteArray): Boolean {
-        val authTagStart = 8
+        val authTagStart = BASE_HEADER_LENGTH
         val authTagEnd = authTagStart + AUTH_TAG_LENGTH
         val actualTag = packet.copyOfRange(authTagStart, authTagEnd)
         return actualTag.contentEquals(createAuthTag(udpData))
     }
 
     private fun createAuthTag(udpData: ByteArray): ByteArray {
+        val secret = authSecret.get() ?: return ByteArray(0)
         val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(authSecret.get(), "HmacSHA256"))
+        mac.init(SecretKeySpec(secret, "HmacSHA256"))
         val digest = mac.doFinal(udpData)
         return digest.copyOfRange(0, AUTH_TAG_LENGTH)
     }

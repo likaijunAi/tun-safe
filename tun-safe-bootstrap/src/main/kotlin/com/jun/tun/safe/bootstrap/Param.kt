@@ -17,7 +17,9 @@ class Param {
     var udpBindPort: Int = env("UDP_BIND_PORT", 8080)
     var remoteTcpHost: String? = envNullable("REMOTE_TCP_HOST")
     var remoteTcpPort: Int = env("REMOTE_TCP_PORT", 9090)
-    var authToken: String = env("AUTH_TOKEN", "tun-safe-token")
+    var authToken: String = env("AUTH_TOKEN", "")
+
+    var initialClientPoolSize: Int = env("INITIAL_CLIENT_POOL_SIZE", 0)
 
     var debug: Boolean = env("DEBUG", "false").toBoolean()
         set(value) {

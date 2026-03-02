@@ -28,6 +28,7 @@ class TunServer(
     private val bindPort: Int,
     private val tcpTargetHost: String,
     private val tcpTargetPort: Int,
+    private val  initialPoolSize: Int=0,
     externalBossGroup: EventLoopGroup? = null,
     externalWorkerGroup: EventLoopGroup? = null
 ) {
@@ -47,7 +48,7 @@ class TunServer(
     private val stopped = AtomicBoolean(false)
 
     private val udpToTcpHandler: UdpToTcpHandler by lazy {
-        UdpToTcpHandler(tcpTargetHost, tcpTargetPort, workerGroup)
+        UdpToTcpHandler(tcpTargetHost, tcpTargetPort, workerGroup, initialPoolSize)
     }
 
     /**
@@ -218,6 +219,7 @@ class TunServer(
             }
         }
 
+        @Deprecated("Deprecated in Java")
         override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
             logger.error("DatagramPacketDecoder exception", cause)
         }
